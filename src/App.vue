@@ -5,6 +5,8 @@ import { calculateElapsedDays, millisecondsUntilNextMidnight } from './lib/days.
 import { nextChapterIndex, horizontalSwipeDirection } from './lib/navigation.js';
 import OpeningScreen from './components/OpeningScreen.vue';
 import LandscapeGate from './components/LandscapeGate.vue';
+import Lightbox from './components/Lightbox.vue';
+import FallbackGallery from './components/FallbackGallery.vue';
 
 const { content, errors } = normalizeAlbumContent(window.ALBUM_CONTENT);
 const entered = ref(false), index = ref(0), locked = ref(false), hidden = ref(document.hidden), orientationBlocked = ref(false);
@@ -21,10 +23,13 @@ const allPhotos = content.chapters.flatMap((item) => item.photos);
 const photos = computed(() => index.value === 3 ? allPhotos : chapter.value.photos);
 const formation = computed(() => ['river', 'river', 'infinity', 'doubleHeart'][index.value] ?? 'river');
 const musicAvailable = ref(false), muted = ref(false);
+const selectedIndex = ref(-1);
+const lightboxOpen = computed(() => selectedIndex.value >= 0);
 let audio, dayTimer, transitionTimer, idleTimer, idleIsCallback = false, touchStart, lastWheel = -Infinity;
 const baseVolume = 0.55;
 let fadeFrame;
-const stagePaused = computed(() => hidden.value || orientationBlocked.value);
+const stagePaused = computed(() => hidden.value || orientationBlocked.value || lightboxOpen.value);
+function openPhoto(photo) { if (!locked.value) selectedIndex.value = photos.value.findIndex((item) => item.key === photo.key); }
 
 function updateDays() {
   days.value = calculateElapsedDays(content.startDate, new Date(), content.timeZone);
@@ -68,7 +73,7 @@ function fadeVolume(target) {
   fadeFrame = requestAnimationFrame(fade);
 }
 function navigate(direction) {
-  if (!entered.value || orientationBlocked.value) return;
+  if (!entered.value || orientationBlocked.value || lightboxOpen.value) return;
   const next = nextChapterIndex(index.value, direction, content.chapters.length + 1, locked.value);
   if (next === index.value) return;
   cancelPreload();
@@ -93,7 +98,7 @@ function wheel(event) {
   navigate(Math.sign(event.deltaY));
 }
 function keydown(event) {
-  if (event.altKey || event.ctrlKey || event.metaKey || event.repeat || event.target.closest('button, summary, input, textarea')) return;
+  if (lightboxOpen.value || event.altKey || event.ctrlKey || event.metaKey || event.repeat || event.target.closest('summary, input, textarea')) return;
   const direction = ['ArrowRight', 'ArrowDown', 'PageDown'].includes(event.key) ? 1 : ['ArrowLeft', 'ArrowUp', 'PageUp'].includes(event.key) ? -1 : 0;
   if (direction) { event.preventDefault(); navigate(direction); }
 }
@@ -122,7 +127,7 @@ onBeforeUnmount(() => {
 
 <template>
   <LandscapeGate @blocking="orientationBlocked = $event" />
-  <main :inert="orientationBlocked || undefined" :aria-hidden="orientationBlocked || undefined"
+  <main :inert="orientationBlocked || lightboxOpen || undefined" :aria-hidden="orientationBlocked || lightboxOpen || undefined"
     @wheel.passive="wheel" @touchstart.passive="touchStart = { x: $event.touches[0].clientX, y: $event.touches[0].clientY }" @touchend.passive="touchEnd">
     <div class="film-edges" aria-hidden="true"></div>
     <header class="masthead"><a href="./" aria-label="回到开场">OUR FIRST ANNIVERSARY</a><span>2025.12.14 — FOREVER</span></header>
@@ -130,17 +135,19 @@ onBeforeUnmount(() => {
     <section v-else class="chapter" aria-labelledby="chapter-title" :aria-busy="locked">
       <header class="chapter-heading"><p class="eyebrow">CHAPTER {{ String(index + 1).padStart(2, '0') }} / 04</p><h1 id="chapter-title" class="chapter-title" tabindex="-1">{{ chapter.title }}</h1></header>
       <div class="stage-wrap">
-        <div v-if="fallback" class="empty-chapter"><p>{{ fallbackReason || '轻量照片墙' }}</p><p>这一幕，等我们的照片入场</p></div>
-        <AlbumStage v-else :photos="photos" :formation="formation" :paused="stagePaused" :reduced-motion="reduced" @transition-end="transitionEnd" @fallback="useFallback" />
-        <p v-if="index === 3 && days !== null" class="climax-days"><strong>{{ days }}</strong><span>天，未完待续</span></p>
+        <FallbackGallery v-if="fallback" :photos="photos" @photo-select="openPhoto" />
+        <AlbumStage v-else :photos="photos" :formation="formation" :paused="stagePaused" :reduced-motion="reduced" @photo-select="openPhoto" @transition-end="transitionEnd" @fallback="useFallback" />
+        <p v-if="index === 3 && days !== null" class="climax-days" :class="{ 'gallery-days': fallback }"><strong>{{ days }}</strong><span>天，未完待续</span></p>
       </div>
       <footer class="chapter-controls">
         <button :disabled="index === 0 || locked" @click="navigate(-1)">← 上一幕</button>
         <p aria-live="polite">{{ String(index + 1).padStart(2, '0') }}<span> / 04</span><small>{{ locked ? '回忆正在入场' : '滚动 · 方向键 · 横向滑动' }}</small></p>
         <button :disabled="locked" @click="navigate(1)">{{ index === 3 ? '未完待续' : '下一幕' }} →</button>
       </footer>
+      <p v-if="fallback" class="fallback-note" role="status">{{ fallbackReason || '轻量照片墙 · 已减少动态效果' }}</p>
     </section>
     <button v-if="musicAvailable" class="music-button" :aria-pressed="muted" @click="toggleMusic">{{ muted ? '开启音乐' : '静音音乐' }}</button>
     <details v-if="errors.length" class="config-errors"><summary>相册配置提示 · {{ errors.length }}</summary><ul><li v-for="error in errors" :key="error">{{ error }}</li></ul></details>
   </main>
+  <Lightbox v-if="lightboxOpen && !orientationBlocked" :photos="photos" :index="selectedIndex" @change="selectedIndex = $event" @close="selectedIndex = -1" />
 </template>

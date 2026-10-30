@@ -10,3 +10,8 @@ export function horizontalSwipeDirection(start, end, minDistance = 50) {
   if (Math.abs(dx) < minDistance || Math.abs(dx) <= Math.abs(dy) * 1.2) return 0;
   return dx > 0 ? -1 : 1;
 }
+
+export function stepPhotoIndex(index, direction, count) {
+  if (count <= 0) return -1;
+  return ((index + Math.sign(direction)) % count + count) % count;
+}

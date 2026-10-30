@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { nextChapterIndex, horizontalSwipeDirection } from '../src/lib/navigation.js';
+import { nextChapterIndex, horizontalSwipeDirection, stepPhotoIndex } from '../src/lib/navigation.js';
 
 test('chapter navigation is bounded, locked, and one step per action', () => {
   assert.equal(nextChapterIndex(1, 1, 4, true), 1);
@@ -17,4 +17,10 @@ test('swipes require 50px and horizontal dominance, right is previous', () => {
   assert.equal(horizontalSwipeDirection(start, { x: 160, y: 100 }), -1);
   assert.equal(horizontalSwipeDirection(start, { x: 40, y: 100 }), 1);
   assert.equal(horizontalSwipeDirection(null, start), 0);
+});
+test('lightbox wraps at either end and empty sets are safe', () => {
+  assert.equal(stepPhotoIndex(3, 1, 4), 0);
+  assert.equal(stepPhotoIndex(0, -1, 4), 3);
+  assert.equal(stepPhotoIndex(0, 1, 0), -1);
+  assert.equal(stepPhotoIndex(0, -1, 1), 0);
 });
