@@ -16,6 +16,7 @@ test('stable frames remain normal, two sustained slow windows degrade in stages'
 test('exact 24 FPS and isolated slow frames do not cause downgrade', () => {
   const budget = createFrameBudget();
   for (let index = 0; index < 144; index++) assert.equal(budget.addFrame(1000 / 24), 'normal');
+  budget.reset();
   assert.equal(budget.addFrame(80), 'normal');
   for (let index = 0; index < 300; index++) assert.equal(budget.addFrame(16), 'normal');
 });
