@@ -1,0 +1,15 @@
+{
+  "name": "anniversary-album",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test",
+    "prepare-media": "node scripts/prepare-photos.mjs"
+  },
+  "dependencies": { "vue": "^3.5.44", "three": "^0.187.0" },
+  "devDependencies": { "vite": "^8.3.5", "@vitejs/plugin-vue": "^6.0.10", "sharp": "^0.35.5" }
+}
