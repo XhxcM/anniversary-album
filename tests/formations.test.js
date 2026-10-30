@@ -22,3 +22,12 @@ test('even selection keeps ordered unique endpoints and handles small limits', (
   assert.deepEqual(selectEvenly(values, 1), [0]);
   assert.deepEqual(selectEvenly([1], 24), [1]);
 });
+test('60 framed photos leave space around heart cusps and formation crossings', () => {
+  for (const name of ['river', 'infinity', 'doubleHeart']) {
+    const points = createFormation(name, 60, { width: 16, height: 9 });
+    points.forEach((a, index) => points.slice(index + 1).forEach((b) => {
+      const totalScale = a.scale + b.scale;
+      assert.ok(Math.abs(a.x - b.x) > 0.72 * totalScale || Math.abs(a.y - b.y) > 0.58 * totalScale, `${name}: frames overlap`);
+    }));
+  }
+});
