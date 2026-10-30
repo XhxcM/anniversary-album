@@ -40,6 +40,8 @@ export function normalizeAlbumContent(raw) {
     }
     let id = safeSegment(chapter.id) ? chapter.id : defaults.id;
     if (ids.has(id)) { errors.push(`chapters[${index}]：id 重复`); id = `${defaults.id}-${index}`; }
+    let suffix = 1;
+    while (ids.has(id)) id = `${defaults.id}-${index}-${suffix++}`;
     ids.add(id);
     const folder = safeSegment(chapter.folder) ? chapter.folder : defaults.folder;
     if (chapter.folder != null && !safeSegment(chapter.folder)) errors.push(`${id}：目录名称无效`);

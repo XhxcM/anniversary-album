@@ -29,7 +29,7 @@ export function createFormation(name, count, viewport = { width: 16, height: 9 }
   const hearts = name === 'doubleHeart' ? [...heartPoints(Math.ceil(count / 2), -1), ...heartPoints(Math.floor(count / 2), 1)] : [];
   const points = Array.from({ length: count }, (_, index) => {
     const progress = count === 1 ? 0.5 : index / (count - 1);
-    const angle = (index + 0.5) / Math.max(1, count) * Math.PI * 2;
+    const angle = (index + 0.25) / Math.max(1, count) * Math.PI * 2;
     let x, y;
     if (name === 'river') {
       x = (progress - 0.5) * width * 0.78;

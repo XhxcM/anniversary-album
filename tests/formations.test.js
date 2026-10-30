@@ -6,6 +6,7 @@ for (const name of ['river', 'infinity', 'doubleHeart']) test(`${name}: all coun
   for (let count = 0; count <= 60; count++) {
     const points = createFormation(name, count, { width: 16, height: 9 });
     assert.equal(points.length, count);
+    assert.ok(points.every((point) => point.scale >= 0.1), `${name}/${count}: cards must stay visible`);
     for (const point of points) for (const field of ['x', 'y', 'z', 'rotationZ', 'scale']) assert.ok(Number.isFinite(point[field]));
     assert.equal(new Set(points.map(({ x, y, z }) => `${x},${y},${z}`)).size, count);
   }

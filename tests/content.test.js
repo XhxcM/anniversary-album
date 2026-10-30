@@ -32,3 +32,15 @@ test('media paths derive thumb/full from folder and basename', () => {
     thumb: './media/photos/01-故事开始/thumb/01.webp', full: './media/photos/01-故事开始/full/01.webp',
   });
 });
+test('replacement chapter ids remain unique when supplied ids match fallback ids', () => {
+  const { content, errors } = normalizeAlbumContent({ startDate: '2025-12-14', chapters: [
+    { id: 'everyday-1', folder: 'a', photos: [{ file: '01' }] },
+    { id: 'everyday-1', folder: 'b', photos: [{ file: '01' }] },
+    { id: 'everyday-1-1', folder: 'c', photos: [{ file: '01' }] },
+    { id: 'everyday-1-1', folder: 'd', photos: [{ file: '01' }] },
+  ] });
+  assert.ok(errors.length);
+  assert.equal(new Set(content.chapters.map((chapter) => chapter.id)).size, 4);
+  const keys = content.chapters.flatMap((chapter) => chapter.photos.map((photo) => photo.key));
+  assert.equal(new Set(keys).size, keys.length);
+});
