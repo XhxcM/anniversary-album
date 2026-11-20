@@ -7,9 +7,10 @@ export function selectEvenly(items, limit) {
 }
 
 export function createFormation(name, count, viewport = { width: 16, height: 9 }) {
-  const width = viewport.width;
+  const width = Math.min(viewport.width, viewport.height * 2.55);
   const height = viewport.height;
-  const scale = Math.min(0.95, Math.max(0.34, 3.6 / Math.sqrt(Math.max(1, count))));
+  const cardSize = name === 'matrix' ? 3.77 : 4;
+  const scale = Math.min(0.95, Math.max(0.34, cardSize / Math.sqrt(Math.max(1, count))));
   function heartPoints(size, side) {
     const curve = Array.from({ length: 513 }, (_, index) => {
       const t = index / 512 * Math.PI * 2;
@@ -27,27 +28,57 @@ export function createFormation(name, count, viewport = { width: 16, height: 9 }
     });
   }
   const hearts = name === 'doubleHeart' ? [...heartPoints(Math.ceil(count / 2), -1), ...heartPoints(Math.floor(count / 2), 1)] : [];
-  const points = Array.from({ length: count }, (_, index) => {
-    const progress = count === 1 ? 0.5 : index / (count - 1);
+  const size = scale * ({ doubleHeart: 1.76, matrix: 1.91, sphere: 2, river: 1.83, ring: 1.82, cylinder: 2 }[name] ?? 1);
+  const edgeInset = Math.min(width * 0.1, Math.max(0, size - 0.78) * 0.62);
+  return Array.from({ length: count }, (_, index) => {
     const angle = (index + 0.25) / Math.max(1, count) * Math.PI * 2;
-    let x, y;
+    let x, y, z = Math.sin(index * 2.4) * 0.32, rotationY = 0;
     if (name === 'river') {
-      x = (progress - 0.5) * width * 0.78;
-      y = Math.sin(progress * Math.PI * 2) * height * 0.23;
+      const columns = Math.ceil(count / Math.min(5, Math.ceil(count / 10)));
+      const column = columns === 1 ? 0.5 : (index % columns) / (columns - 1);
+      x = (column - 0.5) * (width * 0.74 - 2 * edgeInset);
+      const row = Math.floor(index / columns) - (Math.ceil(count / columns) - 1) / 2;
+      y = Math.sin(column * Math.PI * 2) * height * 0.115 + row * Math.max(height * 0.083, size * 1.14);
+      z = Math.cos(column * Math.PI * 2) * 1.15;
+      rotationY = Math.sin(column * Math.PI * 2) * 0.42;
     } else if (name === 'infinity') {
       x = Math.cos(angle) * width * 0.36;
       y = Math.sin(2 * angle) * height * 0.26;
     } else if (name === 'doubleHeart') {
       ({ x, y } = hearts[index]);
+    } else if (name === 'matrix') {
+      const columns = Math.ceil(Math.sqrt(count));
+      const rows = Math.ceil(count / columns);
+      const row = Math.floor(index / columns);
+      const rowLength = Math.min(columns, count - row * columns);
+      x = (index % columns - (rowLength - 1) / 2) * Math.min(width * 0.78, height * 0.91) / columns;
+      y = ((rows - 1) / 2 - row) * height * 0.95 / rows;
+      z = 0;
+    } else if (name === 'sphere') {
+      const vertical = 1 - 2 * (index + 0.5) / count;
+      const radius = Math.sqrt(1 - vertical ** 2);
+      const longitude = index * Math.PI * (3 - Math.sqrt(5));
+      x = Math.cos(longitude) * radius * Math.min(width * 0.32, height * 0.43);
+      y = vertical * (height * 0.36 - Math.min(height * 0.1, edgeInset * 0.66));
+      z = Math.sin(longitude) * radius * 2.2;
+      rotationY = x / height * 1.35;
+    } else if (name === 'ring') {
+      const bands = Math.min(3, Math.ceil(count / 20));
+      const band = index % bands - (bands - 1) / 2;
+      const longitude = (Math.floor(index / bands) + (band + 1) * 0.28) / Math.ceil(count / bands) * Math.PI * 2;
+      x = Math.sin(longitude) * (width * 0.32 + band * 0.15);
+      y = Math.cos(longitude) * height * 0.18 + band * height * 0.087;
+      z = Math.cos(longitude) * 2 + band * 0.22;
+      rotationY = Math.sin(longitude) * 0.48;
+    } else if (name === 'cylinder') {
+      const columns = Math.ceil(count / Math.min(5, Math.ceil(count / 10)));
+      const longitude = columns === 1 ? 0 : (index % columns / (columns - 1) - 0.5) * Math.PI * 0.87;
+      x = Math.sin(longitude) * (width * 0.37 - edgeInset);
+      y = (Math.floor(index / columns) - (Math.ceil(count / columns) - 1) / 2) * Math.max(height * 0.13, size * 1.17);
+      z = (1 - Math.cos(longitude)) * 2.5 - 0.8;
+      rotationY = -longitude * 0.72;
     } else { throw new Error(`Unknown formation: ${name}`); }
-    return { x, y, z: Math.sin(index * 2.4) * 0.32, rotationZ: Math.sin(index * 1.7) * 0.09, scale };
+    return { x, y, z, rotationY, rotationZ: name === 'matrix' || name === 'cylinder' ? 0 : Math.sin(index * 1.7) * 0.08,
+      scale: size };
   });
-  for (const point of points) {
-    for (const other of points) {
-      if (other === point) continue;
-      // Leave room for the warm border and small rotation at tight turns.
-      point.scale = Math.min(point.scale, Math.max(Math.abs(point.x - other.x) / 1.5, Math.abs(point.y - other.y) / 1.25) * 0.9);
-    }
-  }
-  return points;
 }

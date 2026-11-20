@@ -1,89 +1,48 @@
-# Our First Anniversary
+# Our Little Universe
 
-一周年纪念相册，起始日期为 2025-12-14，按上海自然日计数。Vue 管理界面，Three.js 管理照片舞台；无 WebGL 时使用普通照片墙。
+自动循环纪念相册。打开页面可看到封面和实时计时，点击开场后进入相册。双心、矩阵、球形、波浪长廊、圆环和半圆柱每 51 秒循环一轮。同屏最多展示 36 张，照片随造型转场分批轮换。手机需要横屏观看，系统减少动态效果或 WebGL 不可用时显示照片墙。
 
-## 本地运行
+## 本地预览
 
-需要 Node.js 22.12+（当前验证为 Node.js 24）。首次执行 `npm install`，之后运行 `npm run dev -- --host 127.0.0.1`，访问终端输出的网址。
+使用 Node.js 22.12+。首次运行时先安装依赖。
 
-## 准备素材
-
-原图仅存放在以下目录，不要改成输出目录：
-
-```text
-originals/
-  cover.jpg
-  01-故事开始/01.jpg
-  02-平凡日常/01.jpg
-  03-一起走过/01.jpg
-  04-纪念日/01.jpg
+```sh
+npm install
+npm run prepare-media -- --dry-run
+npm run prepare-media
+npm run dev -- --host 127.0.0.1
 ```
 
-每章按顺序使用 `01`、`02` 等不含扩展名的 basename；原图支持 JPG/JPEG/PNG，大小写扩展名均可。同一章节同一 basename 只保留一张。HEIC 请先导出为 JPG。
+## 素材与内容
 
-在 `public/content.js` 对应章节加入 `{ file: '01', caption: '' }`。运行 `npm run prepare-media -- --dry-run` 预览缺失素材（不写入且退出码为 0）；确认后运行 `npm run prepare-media`。
+- 正式照片在 `pictures/`，封面在 `important/`。`public/content.js` 中的 `photoSources` 按列出的顺序读取文件名，不含扩展名。JPG、JPEG 和 PNG 扩展名支持大小写。移除 `photoSources` 时，旧 `chapters` 的照片按章节顺序从 `originals/` 迁移读取。
+- `coverSource` 指向开场最前方的封面。`opening` 可选填最多三个 `./media/` 下的图片路径，作为封面背后的卡片。
+- 网页副本写入 `public/media/`。照片卡片自动校正方向并裁成 3:4，默认居中。单张照片可以写成 `{ file: 'DSC_8047', position: 'top' }`，支持 `top`、`bottom`、`left`、`right`。素材脚本去除 EXIF 和 XMP，保留原图。移除照片配置后，发布前检查并移走 `public/media/photos/` 中相应的旧网页副本。
+- 计时起点默认从 `startDate` 推导为上海当地当天零点。如需精确到其他时刻，可填写带时区的 `startInstant`，例如 `2025-12-14T00:00:00+08:00`。
+- 音乐放在 `public/media/music.mp3`，然后把 `music` 设为 `'./media/music.mp3'`。暂未提供音乐时使用 `null`。
+- 在 `timeline` 中按展示顺序填写 `{ date, title, description }`。日期可填 `YYYY.MM.DD` 或“未完待续”等展示文字。当前只保留计划指定的未来节点。
 
-生成路径为 `public/media/photos/<folder>/thumb/<file>.webp` 和 `full/<file>.webp`，最长边分别为 512 和 1920 像素；`originals/cover.jpg` 生成最长边 2400 像素的 `public/media/cover.jpg`。自动校正方向并去除元数据，永不修改原图。命令逐项列出缺失或不支持的文件，实际处理遇错返回非零状态。
+## 加密信件
 
-`originals/`、`public/media/`、`dist/` 已被 Git 忽略。音乐自行放在 `public/media/music.mp3`，缺失时不影响观看。
+在本机创建已被 Git 忽略的 `private/letter.txt`，用 UTF-8 填入正文和落款。接着在交互式终端执行以下命令。
 
-## 编辑内容
-
-`public/content.js` 在页面启动前加载，替换后重新构建即可。此文件是公开的 JavaScript，不要放入密码、令牌或密钥；保留 `window.ALBUM_CONTENT = { ... };` 格式。
-
-| 字段 | 用法 |
-| --- | --- |
-| `startDate` | `YYYY-MM-DD`，默认 `2025-12-14`；无效时隐藏天数并给出提示 |
-| `timeZone` | 默认 `Asia/Shanghai`，计数按这个时区的自然日计算，与访问者所在地无关 |
-| `cover` | `./media/cover.jpg`；缺失时显示黄昏色背景；设为 `null` 可省略 |
-| `music` | `./media/music.mp3`；不需要音乐时设为 `null`；仅在开场按钮点击后播放 |
-| `letter` | 普通文本，支持换行；空字符串不会留下空白告白框 |
-| `chapters` | 固定四章，按配置数组顺序显示；第 4 章汇集所有照片形成双心 |
-| `chapters[].id` | 唯一且稳定的章节标识，使用字母、数字、短横线或下划线 |
-| `chapters[].title` | 章节标题，默认使用已确认的四个标题 |
-| `chapters[].folder` | `originals/` 下的章节目录名；可使用中文、字母、数字、短横线、下划线 |
-| `chapters[].photos` | 章节内有序照片数组；总计建议 40–60 张 |
-| `photos[].file` | 不带扩展名的文件名，例如 `'01'`；每章内不可重复 |
-| `photos[].caption` | 可选纯文本，仅在放大查看时展示；留空即可；不解析 HTML |
-
-照片示例：
-
-```js
-photos: [
-  { file: '01', caption: '' },
-  { file: '02', caption: '一起走过的傍晚。' },
-]
+```sh
+node scripts/encrypt-letter.mjs
 ```
 
-请使用 UTF-8 保存。每次更新照片，重新运行素材处理，再构建；直接编辑 `dist/content.js` 虽可临时生效，但下一次构建会覆盖，正式维护请改 `public/content.js`。
+按提示输入两次口令。工具不回显口令，生成 `private/letter.encrypted.json`。将该 JSON 对象填入 `public/content.js` 的 `encryptedLetter`。重新加密前先移走上次的输出文件。信件未准备时保留 `null`。
 
-## 观看与兼容
+公开页面通过 HTTPS 上的 Web Crypto 解密，本机可用回环地址预览。发布内容只需要密文及其算法参数，明文与口令留在本地。短口令可能被拿到密文的人离线尝试。
 
-开场按钮进入相册；滚轮、方向键、横向滑动或按钮切换章节。一次输入只前进一章，转场期间忽略重复输入；照片墙区域保留垂直滚动，可用章节按钮推进。第 4 章后显示结尾，点击“重新观看”回到第 1 章。
-
-点击照片放大；Three.js 舞台也提供“浏览本章照片”按钮列表，便于键盘访问。放大后可用左右按钮、方向键、横向滑动切换，Esc 关闭并返回原焦点。音乐不因打开照片而暂停。
-
-手机竖屏默认提示旋转，不能旋转时选择“仍然继续”。系统减少动态效果、WebGL 不可用、上下文丢失或持续低帧率时使用 DOM 照片墙。低帧率先降低像素比和可见照片数，再降级；照片墙保留全部照片。真实设备验收见 [发布检查表](docs/release-checklist.md)。
-
-## 验证与构建
+## 构建与发布
 
 ```sh
 npm test
+npm run prepare-media -- --dry-run
 npm run build
 npm run preview -- --host 127.0.0.1
 ```
 
-`npm test` 覆盖上海日期边界、内容校验、无损原图处理、阵型、转场键、性能降级与导航。`dist/` 是静态发布产物，需通过 HTTP/HTTPS 打开，不能双击 `index.html` 作为 `file://` 页面运行。
+`dist/` 是静态发布目录，通过 HTTP 或 HTTPS 访问。Three.js 在进入舞台时加载，构建默认会提示其独立块超过 500 KB。正式素材到齐后复查，再将 `dist/` 上传到已确认的静态托管项目。见[发布验收记录](docs/release-checklist.md)。
 
-Three.js 按进入相册时按需加载。构建中独立 Three.js 块约 538 KB（gzip 约 135 KB），会出现默认 500 KB 大小提示；它不是构建失败，开场和减少动态效果路径不加载该块。未引入额外运行时库来拆分引擎。
-
-## Netlify 手动发布
-
-1. 先补齐正式照片、封面、音乐和可选告白，完成素材处理、测试与构建。
-2. 登录自己的 Netlify 项目，通过手动部署入口上传整个 `dist/` 目录；首次发布保留自动生成、无实际含义的网址。
-3. 使用同一 Netlify 项目更新，避免每次产生新地址。
-4. 在 HTTPS 地址上核对 `content.js`、`robots.txt`、封面和照片路径，点击开场验证音乐；在桌面、手机 Safari/Chrome 和微信实际打开。
-
-本项目没有登录或访问控制。未公开的网址、`robots.txt` 和 `noindex, nofollow` 只降低被发现的概率，任何拿到链接的人都能查看。部署前确认照片与音乐可以分享。
-
-实现参考：[Vue 文档](https://vuejs.org/guide/introduction.html)、[Vite 构建文档](https://vite.dev/guide/build)、[Three.js 渲染器文档](https://threejs.org/docs/pages/WebGLRenderer)。
+随机链接、`noindex` 和 `robots.txt` 只能降低被发现的概率。持链接者可以查看并保存网页照片。

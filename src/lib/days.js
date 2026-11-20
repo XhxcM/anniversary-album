@@ -1,5 +1,17 @@
 const DAY = 86400000;
 
+export function elapsedParts(startInstant, now = Date.now()) {
+  if (typeof startInstant !== 'string' ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:Z|[+-]\d{2}:\d{2})$/.test(startInstant)) return null;
+  const start = Date.parse(startInstant);
+  const calendar = new Date(startInstant.slice(0, 10) + 'T00:00:00Z');
+  if (!Number.isFinite(start) || !Number.isFinite(+calendar) || calendar.toISOString().slice(0, 10) !== startInstant.slice(0, 10) ||
+      Number(startInstant.slice(11, 13)) > 23 || !Number.isFinite(+now)) return null;
+  const seconds = Math.floor(Math.max(0, +now - start) / 1000);
+  return { days: Math.floor(seconds / 86400), hours: Math.floor(seconds / 3600) % 24,
+    minutes: Math.floor(seconds / 60) % 60, seconds: seconds % 60 };
+}
+
 function calendarDay(now, timeZone) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone, year: 'numeric', month: '2-digit', day: '2-digit',

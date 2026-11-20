@@ -23,12 +23,44 @@ test('even selection keeps ordered unique endpoints and handles small limits', (
   assert.deepEqual(selectEvenly(values, 1), [0]);
   assert.deepEqual(selectEvenly([1], 24), [1]);
 });
-test('60 framed photos leave space around heart cusps and formation crossings', () => {
-  for (const name of ['river', 'infinity', 'doubleHeart']) {
-    const points = createFormation(name, 60, { width: 16, height: 9 });
-    points.forEach((a, index) => points.slice(index + 1).forEach((b) => {
-      const totalScale = a.scale + b.scale;
-      assert.ok(Math.abs(a.x - b.x) > 0.72 * totalScale || Math.abs(a.y - b.y) > 0.58 * totalScale, `${name}: frames overlap`);
-    }));
+test('all six loop shapes are deterministic with finite transforms through 100 cards', () => {
+  for (const name of ['doubleHeart', 'matrix', 'sphere', 'river', 'ring', 'cylinder']) {
+    for (const count of [0, 1, 70, 100]) {
+      const points = createFormation(name, count);
+      assert.equal(points.length, count);
+      assert.deepEqual(points, createFormation(name, count));
+      for (const point of points) {
+        for (const field of ['x', 'y', 'z', 'rotationY', 'rotationZ', 'scale']) assert.ok(Number.isFinite(point[field]), name + '/' + field);
+        assert.ok(point.scale > 0);
+      }
+    }
   }
+});
+
+test('100-card matrix is a regular grid with room between portrait cards', () => {
+  const points = createFormation('matrix', 100);
+  const rows = new Set(points.map((point) => point.y));
+  const columns = new Set(points.map((point) => point.x));
+  assert.equal(rows.size, 10);
+  assert.equal(columns.size, 10);
+  assert.ok(Math.abs(points[10].y - points[0].y) > 1.08 * points[0].scale);
+  assert.ok(points[1].x - points[0].x > 0.82 * points[0].scale);
+});
+
+test('landscape formations give photos more space and expand the double heart on wide screens', () => {
+  const viewport = { width: 34, height: 8.5 };
+  for (const name of ['doubleHeart', 'matrix', 'sphere', 'river', 'ring', 'cylinder']) {
+    assert.ok(createFormation(name, 100, viewport).every(({ scale }) => scale >= 0.62), name);
+  }
+  const x = createFormation('doubleHeart', 100, viewport).map((point) => point.x);
+  assert.ok(Math.max(...x) - Math.min(...x) > 15);
+});
+
+test('36 larger portrait cards fit a complete 6 by 6 matrix with a vertical gap', () => {
+  const points = createFormation('matrix', 36, { width: 34, height: 8.5 });
+  assert.equal(new Set(points.map((point) => point.y)).size, 6);
+  assert.equal(new Set(points.map((point) => point.x)).size, 6);
+  assert.ok(points[0].scale > 1.19);
+  assert.ok(points[0].y - points[6].y > points[0].scale * 1.10 + 0.015);
+  assert.ok(createFormation('doubleHeart', 36)[0].scale > 1.16);
 });

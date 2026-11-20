@@ -1,26 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { nextChapterIndex, horizontalSwipeDirection, stepPhotoIndex } from '../src/lib/navigation.js';
+import { albumPhase } from '../src/lib/navigation.js';
 
-test('chapter navigation is bounded, locked, and one step per action', () => {
-  assert.equal(nextChapterIndex(1, 1, 4, true), 1);
-  assert.equal(nextChapterIndex(0, -1, 4, false), 0);
-  assert.equal(nextChapterIndex(3, 1, 4, false), 3);
-  assert.equal(nextChapterIndex(1, 20, 4, false), 2);
-  assert.equal(nextChapterIndex(2, -20, 4, false), 1);
-  assert.equal(nextChapterIndex(0, 1, 0, false), -1);
-});
-test('swipes require 50px and horizontal dominance, right is previous', () => {
-  const start = { x: 100, y: 100 };
-  assert.equal(horizontalSwipeDirection(start, { x: 149, y: 100 }), 0);
-  assert.equal(horizontalSwipeDirection(start, { x: 160, y: 220 }), 0);
-  assert.equal(horizontalSwipeDirection(start, { x: 160, y: 100 }), -1);
-  assert.equal(horizontalSwipeDirection(start, { x: 40, y: 100 }), 1);
-  assert.equal(horizontalSwipeDirection(null, start), 0);
-});
-test('lightbox wraps at either end and empty sets are safe', () => {
-  assert.equal(stepPhotoIndex(3, 1, 4), 0);
-  assert.equal(stepPhotoIndex(0, -1, 4), 3);
-  assert.equal(stepPhotoIndex(0, 1, 0), -1);
-  assert.equal(stepPhotoIndex(0, -1, 1), 0);
+test('album waits for entry and landscape, then restores the active phase', () => {
+  assert.equal(albumPhase(false, true, 0), 'waiting');
+  assert.equal(albumPhase(true, true, 0), 'landscape');
+  assert.equal(albumPhase(true, false, 2999), 'opening');
+  assert.equal(albumPhase(true, false, 3000), 'loop');
+  assert.equal(albumPhase(true, true, 9000), 'landscape');
+  assert.equal(albumPhase(true, false, 9000), 'loop');
 });

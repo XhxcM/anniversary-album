@@ -2,4 +2,7 @@
 node_modules/
 dist/
 originals/
+pictures/
+important/
+private/
 public/media/

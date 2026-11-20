@@ -1,46 +1,121 @@
 import * as THREE from 'three';
-import { createFormation, selectEvenly } from './formations.js';
+import { createFormation } from './formations.js';
 import { createFrameBudget } from './frame-budget.js';
 import { createTransitionPlan } from './transition-plan.js';
+import { FORMATIONS, OPENING_MS, loopState, photoBatch } from './loop-timeline.js';
+
+const { lerp, smoothstep } = THREE.MathUtils;
+const CARD_LIMITS = { normal: 36, reduced: 12 };
+
+function createFrameMaterial(lightTime) {
+  return new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    uniforms: { uFrameTime: lightTime },
+    vertexShader: `
+      varying vec2 vFrameUv;
+      varying float vFramePhase;
+
+      void main() {
+        vFrameUv = uv;
+        vFramePhase = dot(modelMatrix[3].xy, vec2(0.047, 0.029));
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float uFrameTime;
+      varying vec2 vFrameUv;
+      varying float vFramePhase;
+
+      void main() {
+        vec2 sides = min(vFrameUv, 1.0 - vFrameUv) * vec2(0.89, 1.14);
+        float edge = min(sides.x, sides.y);
+        float aa = max(0.006, fwidth(edge) * 0.65);
+        // Follow the perimeter from the bottom edge, clockwise in UV space.
+        float along = sides.y <= sides.x
+          ? (vFrameUv.y < 0.5 ? 1.0 - vFrameUv.x : 2.0 + vFrameUv.x)
+          : (vFrameUv.x < 0.5 ? 1.0 + vFrameUv.y : 4.0 - vFrameUv.y);
+        float phase = along * 0.25 - uFrameTime * 0.24 + vFramePhase;
+        float orbit = fract(phase);
+        float shine = 1.0 - smoothstep(0.018, 0.17, min(orbit, 1.0 - orbit));
+        float rim = 1.0 - smoothstep(0.005, 0.011 + aa, abs(edge - 0.012));
+        float inner = 1.0 - smoothstep(0.003, 0.008 + aa, abs(edge - 0.059));
+        float glass = smoothstep(0.003, 0.016, edge) * (1.0 - smoothstep(0.048, 0.068, edge));
+        float bevel = sin(clamp((edge - 0.012) / 0.047, 0.0, 1.0) * 3.141593);
+        float facing = sides.y <= sides.x
+          ? (vFrameUv.y > 0.5 ? 1.0 : 0.32)
+          : (vFrameUv.x < 0.5 ? 0.82 : 0.22);
+        float alpha = clamp(glass * (0.18 + 0.14 * bevel + 0.18 * shine)
+          + rim * (0.24 + 0.42 * shine) + inner * 0.22, 0.0, 0.88);
+        if (alpha < 0.005) discard;
+        float hue = 0.5 + 0.5 * cos(phase * 6.283185);
+        vec3 tint = mix(vec3(0.32, 0.54, 0.98), vec3(0.92, 0.40, 0.80), hue);
+        vec3 glassColor = mix(tint * 0.38, vec3(0.88, 0.92, 1.0), facing * bevel * 0.62);
+        glassColor = mix(glassColor, vec3(1.0, 0.93, 1.0), rim * (0.3 + 0.45 * shine));
+        glassColor *= 1.0 - inner * 0.28;
+        gl_FragColor = vec4(mix(glassColor, vec3(1.0, 0.91, 1.0), shine * 0.3), alpha);
+        #include <colorspace_fragment>
+      }
+    `,
+  });
+}
 
 export class AlbumScene {
-  constructor(canvas, { onSelect, onTransitionEnd, onFallback }) {
+  constructor(canvas, { photos, elapsed, onFallback }) {
     this.canvas = canvas;
-    this.onSelect = onSelect;
-    this.onTransitionEnd = onTransitionEnd;
+    this.elapsed = elapsed;
     this.onFallback = onFallback;
     this.items = [];
-    this.retiring = [];
-    this.disposed = false;
-    this.paused = false;
-    this.mode = 'normal';
-    this.time = 0;
-    this.transition = 0;
-    this.lastTime = null;
+    this.textures = new Map();
     this.budget = createFrameBudget();
+    this.mode = 'normal';
+    this.lightTime = { value: 0 };
+    this.applyPhotoLight = (shader) => {
+      shader.uniforms.uAlbumLightTime = this.lightTime;
+      shader.vertexShader = 'varying float vAlbumLightPhase;\n' + shader.vertexShader.replace('#include <uv_vertex>', `
+        #include <uv_vertex>
+        vAlbumLightPhase = dot(modelMatrix[3].xy, vec2(0.053, 0.031));
+      `);
+      shader.fragmentShader = 'uniform float uAlbumLightTime;\nvarying float vAlbumLightPhase;\n' +
+        shader.fragmentShader.replace('#include <opaque_fragment>', `
+          float sweep = fract(uAlbumLightTime * 0.23 - vAlbumLightPhase) * 2.0 - 0.5;
+          float distanceToLight = abs(vMapUv.x + (vMapUv.y - 0.5) * 0.47 - sweep);
+          float glow = 0.16 * (1.0 - smoothstep(0.0, 0.24, distanceToLight));
+          glow += 0.11 * (1.0 - smoothstep(0.0, 0.065, distanceToLight));
+          outgoingLight = mix(outgoingLight, vec3(1.0, 0.76, 0.89), glow);
+          #include <opaque_fragment>
+        `);
+    };
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(42, 16 / 9, 0.1, 100);
-    this.camera.position.z = 12;
+    this.camera.position.z = 10.8;
     this.geometry = new THREE.PlaneGeometry(1, 1);
-    this.raycaster = new THREE.Raycaster();
-    this.pointer = new THREE.Vector2(3, 3);
+    this.frameMaterial = createFrameMaterial(this.lightTime);
     this.loader = new THREE.TextureLoader();
     const placeholder = document.createElement('canvas');
-    placeholder.width = 256; placeholder.height = 180;
+    placeholder.width = 192;
+    placeholder.height = 256;
     const ctx = placeholder.getContext('2d');
-    ctx.fillStyle = '#4b3031'; ctx.fillRect(0, 0, 256, 180);
-    ctx.fillStyle = '#e0b78d'; ctx.font = '14px serif'; ctx.textAlign = 'center';
-    ctx.fillText('A MEMORY', 128, 87); ctx.font = '11px sans-serif'; ctx.fillText('照片暂不可用', 128, 112);
+    ctx.fillStyle = '#29223b';
+    ctx.fillRect(0, 0, 192, 256);
+    ctx.fillStyle = '#f2d9e7';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('照片暂不可用', 96, 128);
     this.placeholder = new THREE.CanvasTexture(placeholder);
     this.placeholder.colorSpace = THREE.SRGBColorSpace;
-    this.contextLost = (event) => { event.preventDefault(); this.fail('图形连接中断，已切换照片墙'); };
+    this.contextLost = (event) => {
+      event.preventDefault();
+      this.fail('图形连接中断，已切换照片墙');
+    };
     canvas.addEventListener('webglcontextlost', this.contextLost);
     this.tick = this.tick.bind(this);
+    this.items = createTransitionPlan([], photos, []).creates.map(({ photo }) => this.makeItem(photo));
     this.resize(canvas.clientWidth, canvas.clientHeight);
-    this.raf = requestAnimationFrame(this.tick);
+    this.paused = true;
   }
 
   fail(reason) {
@@ -50,60 +125,38 @@ export class AlbumScene {
     this.onFallback(reason);
   }
 
-  makeItem(entry) {
+  makeItem(photo) {
     const group = new THREE.Group();
-    const border = new THREE.Mesh(this.geometry, new THREE.MeshBasicMaterial({ color: '#e6c7a7', transparent: true }));
-    border.scale.set(1.36, 1.04, 1);
-    const picture = new THREE.Mesh(this.geometry, new THREE.MeshBasicMaterial({ map: this.placeholder, transparent: true }));
-    picture.scale.set(1.24, 0.9, 1); picture.position.z = 0.006;
+    const border = new THREE.Mesh(this.geometry, this.frameMaterial);
+    border.scale.set(0.89, 1.14, 1);
+    const picture = new THREE.Mesh(this.geometry, new THREE.MeshBasicMaterial({ map: this.placeholder }));
+    picture.material.onBeforeCompile = this.applyPhotoLight;
+    picture.scale.set(0.75, 1, 1);
+    picture.position.z = 0.006;
     group.add(border, picture);
-    group.position.set(entry.target.x * 0.9, entry.target.y, -3);
-    group.scale.setScalar(0.05);
-    const item = { key: entry.key, photo: entry.photo, group, picture, target: entry.target, opacity: 0, dead: false };
-    group.userData.item = item;
     this.scene.add(group);
-    this.loader.load(entry.photo.thumb, (texture) => {
-      if (item.dead || this.disposed) { texture.dispose(); return; }
-      texture.colorSpace = THREE.SRGBColorSpace;
-      item.texture = texture;
-      picture.material.map = texture;
-      picture.material.needsUpdate = true;
-      const aspect = texture.image.width / texture.image.height;
-      picture.scale.set(Math.min(1.24, 0.9 * aspect), Math.min(0.9, 1.24 / aspect), 1);
-    }, undefined, () => { /* Keep the film placeholder when a photo is missing. */ });
-    return item;
-  }
 
-  setChapter(photos, formation) {
-    if (this.disposed || this.failed) return;
-    for (const item of this.retiring) this.removeItem(item);
-    this.retiring = [];
-    this.photos = photos; this.formation = formation;
-    const visible = this.mode === 'reduced' ? selectEvenly(photos, 24) : photos;
-    const targets = createFormation(formation, visible.length, this.viewport);
-    const plan = createTransitionPlan(this.items, visible, targets);
-    this.items = [...plan.updates.map((entry) => {
-      entry.item.target = entry.target;
-      return entry.item;
-    }), ...plan.creates.map((entry) => this.makeItem(entry))];
-    this.retiring = plan.removes;
-    for (const item of [...this.items, ...this.retiring]) {
-      item.from = { x: item.group.position.x, y: item.group.position.y, z: item.group.position.z,
-        rotationZ: item.group.rotation.z, scale: item.group.scale.x, opacity: item.opacity };
+    let entry = this.textures.get(photo.thumb);
+    if (!entry) {
+      entry = { materials: [], texture: null };
+      this.textures.set(photo.thumb, entry);
+      this.loader.load(photo.thumb, (texture) => {
+        if (this.disposed) {
+          texture.dispose();
+          return;
+        }
+        texture.colorSpace = THREE.SRGBColorSpace;
+        entry.texture = texture;
+        for (const material of entry.materials) {
+          material.map = texture;
+          material.needsUpdate = true;
+        }
+        entry.materials.length = 0;
+      }, undefined, () => { entry.materials.length = 0; });
     }
-    this.transition = 1000;
-    this.hovered = null;
-  }
-
-  setPointer(x, y, select = false) {
-    this.pointer.set(x, y);
-    if (this.transition > 0 || this.paused || this.failed) return;
-    this.camera.updateMatrixWorld(); this.scene.updateMatrixWorld(true);
-    this.raycaster.setFromCamera(this.pointer, this.camera);
-    const hit = this.raycaster.intersectObjects(this.items.map((item) => item.group), true)[0];
-    this.hovered = hit?.object.parent.userData.item ?? null;
-    this.canvas.style.cursor = this.hovered ? 'pointer' : 'default';
-    if (select && this.hovered) this.onSelect(this.hovered.photo);
+    if (entry.texture) picture.material.map = entry.texture;
+    else entry.materials.push(picture.material);
+    return group;
   }
 
   setPaused(paused) {
@@ -114,66 +167,88 @@ export class AlbumScene {
     else if (!this.disposed && !this.failed) this.raf = requestAnimationFrame(this.tick);
   }
 
-  setReducedMotion(reduced) { if (reduced) this.fail('已按系统偏好减少动态效果'); }
-
   resize(width, height) {
     if (!width || !height || this.disposed || this.failed) return;
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.viewport = { width: 8.5 * width / height, height: 8.5 };
-    if (this.photos) this.setChapter(this.photos, this.formation);
+    this.updateTargets();
+  }
+
+  updateTargets() {
+    const { count } = photoBatch(0, this.items.length, CARD_LIMITS[this.mode]);
+    this.targets = Object.fromEntries(FORMATIONS.map(({ name }) =>
+      [name, createFormation(name, count, this.viewport)]));
   }
 
   tick(now) {
     if (this.paused || this.disposed || this.failed) return;
-    const delta = this.lastTime === null ? 16 : now - this.lastTime;
+    const delta = this.lastTime === null ? 0 : now - this.lastTime;
     this.lastTime = now;
-    this.time += Math.min(delta, 50);
-    const transitioning = this.transition > 0;
-    if (transitioning) this.transition = Math.max(0, this.transition - Math.min(delta, 50));
-    const progress = 1 - this.transition / 1000;
-    const ease = progress * progress * (3 - 2 * progress);
-    for (const item of [...this.items, ...this.retiring]) {
-      const retiring = this.retiring.includes(item);
-      const target = retiring ? { ...item.target, z: -3, scale: 0.05 } : item.target;
-      const hover = this.hovered === item && !transitioning;
-      const float = transitioning ? 0 : Math.sin(this.time / 2000 + item.target.x) * 0.035;
-      const amount = transitioning ? ease : 1;
-      item.group.position.set(
-        THREE.MathUtils.lerp(item.from.x, target.x, amount),
-        THREE.MathUtils.lerp(item.from.y, target.y, amount) + float,
-        THREE.MathUtils.lerp(item.from.z, target.z, amount) + (hover ? 0.45 : 0));
-      item.group.rotation.z = THREE.MathUtils.lerp(item.from.rotationZ, target.rotationZ, amount);
-      item.group.scale.setScalar(THREE.MathUtils.lerp(item.from.scale, target.scale, amount) * (hover ? 1.07 : 1));
-      item.opacity = THREE.MathUtils.lerp(item.from.opacity, retiring ? 0 : 1, amount);
-      item.group.children.forEach((mesh) => { mesh.material.opacity = item.opacity; });
-    }
-    if (transitioning && this.transition === 0) {
-      for (const item of this.retiring) this.removeItem(item);
-      this.retiring = [];
-      this.onTransitionEnd();
-    }
-    if (!transitioning && this.items.length) {
+    const elapsed = this.elapsed(now);
+    const seconds = elapsed / 1000;
+    this.lightTime.value = seconds;
+    const opening = elapsed < OPENING_MS;
+    if (!opening && this.items.length) {
       const state = this.budget.addFrame(delta);
-      if (state === 'fallback') { this.fail('设备运行较慢，已切换轻量照片墙'); return; }
+      if (state === 'fallback') {
+        this.fail('设备运行较慢，已切换轻量照片墙');
+        return;
+      }
       if (state === 'reduced' && this.mode === 'normal') {
-        this.mode = 'reduced';
+        this.mode = state;
         this.renderer.setPixelRatio(1);
-        this.setChapter(this.photos, this.formation);
+        this.updateTargets();
       }
     }
-    try { this.renderer.render(this.scene, this.camera); }
-    catch { this.fail('图形渲染不可用，已切换照片墙'); return; }
-    this.raf = requestAnimationFrame(this.tick);
-  }
+    const { formation, nextFormation, progress } = loopState(elapsed - OPENING_MS);
+    const total = this.items.length;
+    const { start, count } = photoBatch(elapsed - OPENING_MS, total, CARD_LIMITS[this.mode]);
+    const from = this.targets?.[formation];
+    const to = this.targets?.[nextFormation];
+    const transition = smoothstep(progress, 0, 1);
+    // Keep the rows aligned while still letting the other shapes float.
+    const drift = lerp(formation === 'matrix' ? 0.06 : 1, nextFormation === 'matrix' ? 0.06 : 1, transition);
 
-  removeItem(item) {
-    if (item.dead) return;
-    item.dead = true;
-    this.scene.remove(item.group);
-    item.texture?.dispose();
-    item.group.children.forEach((mesh) => mesh.material.dispose());
+    for (const group of this.items) group.visible = false;
+    for (let index = 0; from && to && index < count; index++) {
+      const delay = 0.09 + (index * 3 % 7) * 0.058;
+      const turn = total > count ? smoothstep(progress, delay, delay + 0.5) : 0;
+      const group = this.items[(start + index + (turn >= 0.5 ? count : 0)) % total];
+      group.visible = true;
+      const a = from[index];
+      const b = to[index];
+      let motion = drift;
+      if (opening) {
+        const amount = smoothstep(elapsed, (index % 17) * 35, OPENING_MS - 100);
+        group.position.set(lerp(Math.sin(index * 2.4) * 0.16, a.x, amount),
+          lerp(Math.cos(index * 2.4) * 0.11, a.y, amount), lerp(-2.6 + index * 0.018, a.z, amount));
+        group.rotation.set(0, lerp(0, a.rotationY, amount), lerp(Math.sin(index) * 0.22, a.rotationZ, amount));
+        group.scale.setScalar(lerp(0.72, a.scale, amount));
+        motion *= amount;
+      } else {
+        group.position.set(lerp(a.x, b.x, transition), lerp(a.y, b.y, transition), lerp(a.z, b.z, transition));
+        group.rotation.set(0, lerp(a.rotationY, b.rotationY, transition), lerp(a.rotationZ, b.rotationZ, transition));
+        group.scale.setScalar(lerp(a.scale, b.scale, transition));
+      }
+      // Replace the picture while its card is turned edge-on.
+      group.scale.x *= Math.abs(Math.cos(Math.PI * turn));
+      const rise = Math.sin(seconds * 1.12 + index * 0.69) * motion;
+      const sway = Math.cos(seconds * 0.87 + index * 0.83) * motion;
+      group.position.x += sway * 0.09;
+      group.position.y += rise * 0.15;
+      group.position.z += sway * 0.14;
+      group.rotation.x -= sway * 0.03;
+      group.rotation.y += rise * 0.065;
+      group.rotation.z += sway * 0.042;
+    }
+    try { this.renderer.render(this.scene, this.camera); }
+    catch {
+      this.fail('图形渲染不可用，已切换照片墙');
+      return;
+    }
+    this.raf = requestAnimationFrame(this.tick);
   }
 
   dispose() {
@@ -181,9 +256,21 @@ export class AlbumScene {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
     this.canvas.removeEventListener('webglcontextlost', this.contextLost);
-    [...this.items, ...this.retiring].forEach((item) => this.removeItem(item));
-    this.geometry.dispose(); this.placeholder.dispose(); this.renderer.dispose();
+    for (const group of this.items) {
+      for (const mesh of group.children) {
+        if (mesh.material !== this.frameMaterial) mesh.material.dispose();
+      }
+      this.scene.remove(group);
+    }
+    for (const { texture, materials } of this.textures.values()) {
+      texture?.dispose();
+      materials.length = 0;
+    }
+    this.textures.clear();
+    this.geometry.dispose();
+    this.frameMaterial.dispose();
+    this.placeholder.dispose();
+    this.renderer.dispose();
     this.renderer.forceContextLoss();
-    this.items = []; this.retiring = [];
   }
 }
