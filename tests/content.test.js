@@ -14,18 +14,28 @@ test('blank letter is valid, absent music is null and captions remain literal te
     chapters: [{ id: 'beginning', folder: '01-故事开始', photos: [{ file: '01', caption: '<b>hello</b>' }, { file: '02', caption: '' }] }] });
   assert.equal(content.encryptedLetter, null);
   assert.equal(content.music, null);
+  assert.equal(content.lyrics, null);
   assert.equal(content.chapters[0].photos[0].caption, '<b>hello</b>');
   assert.equal(content.chapters[0].photos[1].caption, '');
   assert.equal(errors.length, 0);
 });
 test('invalid dates, unsafe paths and duplicate keys are rejected', () => {
   const { content, errors } = normalizeAlbumContent({ startDate: '2025-02-30',
-    cover: 'javascript:alert(1)', music: 'https://example.com/tracker',
+    cover: 'javascript:alert(1)', music: 'https://example.com/tracker', lyrics: './media/../private/song.lrc',
     chapters: [{ folder: 'safe', photos: [{ file: '../bad' }, { file: '01' }, { file: '01' }, null] }] });
   assert.ok(errors.some((error) => error.includes('startDate')));
   assert.equal(content.startDate, null);
   assert.equal(content.music, null);
+  assert.equal(content.lyrics, null);
   assert.equal(content.chapters[0].photos.length, 1);
+});
+
+test('music and lyrics use validated local media paths', () => {
+  const { content, errors } = normalizeAlbumContent({ startDate: '2025-12-14', chapters: [],
+    music: './media/music.mp3', lyrics: './media/lyrics.lrc' });
+  assert.equal(content.music, './media/music.mp3');
+  assert.equal(content.lyrics, './media/lyrics.lrc');
+  assert.deepEqual(errors, []);
 });
 test('media paths derive thumb/full from folder and basename', () => {
   assert.deepEqual(photoMediaPaths('01-故事开始', '01'), {

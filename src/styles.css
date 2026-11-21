@@ -231,6 +231,7 @@ button:disabled { cursor: default; }
   text-shadow: 0 0 14px #f3a3d175;
 }
 .waveform { display: flex; gap: 4px; align-items: center; height: 19px; color: var(--pink); }
+.song-lyrics { white-space: pre-line; overflow-wrap: anywhere; }
 .waveform i {
   display: block;
   width: 2px;
@@ -377,7 +378,7 @@ button:disabled { cursor: default; }
   .glass-button { font-size: 12px; padding-inline: 12px; min-height: 40px; }
 }
 @media (pointer: coarse) and (orientation: landscape), (max-width: 1100px) and (max-height: 600px) and (orientation: landscape) {
-  .universe { grid-template-rows: auto minmax(0, 1fr); padding-top: max(7px, env(safe-area-inset-top)); padding-bottom: max(62px, calc(env(safe-area-inset-bottom) + 52px)); }
+  .universe { grid-template-rows: auto minmax(0, 1fr) auto; padding-top: max(7px, env(safe-area-inset-top)); padding-bottom: max(10px, env(safe-area-inset-bottom)); }
   .album-heading { display: grid; grid-template-columns: 1fr auto; gap: 3px 18px; text-align: left; align-items: center; }
   .album-heading h1 { grid-column: 1; font-size: clamp(16px, 2.5vw, 22px); letter-spacing: .12em; }
   .album-heading > p { grid-column: 1; font-size: 10px; margin: 0; padding-left: 3px; }
@@ -385,8 +386,8 @@ button:disabled { cursor: default; }
   .elapsed-time div { min-width: 27px; }
   .elapsed-time dd { font-size: 20px; }
   .elapsed-time dt { font-size: 9px; }
-  .album-caption { position: absolute; left: max(140px, env(safe-area-inset-left)); right: max(235px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); padding: 0; gap: 5px; }
-  .album-caption p { font-size: 12px; }
+  .album-caption { width: calc(100% - 360px); justify-self: center; min-height: 72px; padding-top: 16px; gap: 5px; align-content: start; }
+  .album-caption p { font-size: clamp(10px, 1.25vw, 12px); line-height: 1.45; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

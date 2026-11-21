@@ -1,4 +1,4 @@
-import { mkdir, readdir, realpath, readFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, realpath, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import vm from 'node:vm';
@@ -91,6 +91,21 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
     }
     if (content.coverSource) await processSource('important', [], path.basename(content.coverSource));
     else if (content.cover === './media/cover.jpg') await processSource('originals', [], 'cover.jpg');
+    for (const [target, original] of [
+      [content.music, 'Spring+Rain-Oscar+Dunbar.mp3'],
+      [content.lyrics, 'Spring Rain-Oscar Dunbar-歌词.lrc'],
+    ]) {
+      if (!target) continue;
+      try {
+        const input = await realpath(path.join('music', original));
+        const destination = await physicalPath(path.resolve('public', target));
+        if (!inside(workspace, input) || !inside(await physicalPath('public/media'), destination)) throw new Error('音乐素材路径超出目录');
+        if (!dryRun) {
+          await mkdir(path.dirname(destination), { recursive: true });
+          await copyFile(input, destination);
+        }
+      } catch (error) { errors.push(`${original}：${error.code === 'ENOENT' ? '找不到音乐素材' : error.message}`); }
+    }
     const processed = results.reduce((sum, result) => sum + result.processed, 0);
     const issues = [...errors, ...results.flatMap((result) => result.failures)];
     console.log(`${dryRun ? '预览（不写入文件）' : '素材处理'}：${processed} 项`);

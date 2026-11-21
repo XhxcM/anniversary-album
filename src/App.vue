@@ -4,6 +4,7 @@ import { normalizeAlbumContent } from './lib/content.js';
 import { elapsedParts } from './lib/days.js';
 import { albumPhase } from './lib/navigation.js';
 import { createPhotoPool } from './lib/photo-pool.js';
+import { lyricAt, parseLyrics } from './lib/lyrics.js';
 import { createPlaybackClock, FORMATIONS, loopState, OPENING_MS } from './three/loop-timeline.js';
 import AlbumDialog from './components/AlbumDialog.vue';
 import FallbackGallery from './components/FallbackGallery.vue';
@@ -33,6 +34,10 @@ const parts = ref(elapsedParts(content.startInstant));
 const audio = ref(null);
 const playing = ref(false);
 const audioError = ref('');
+const lyrics = ref([]);
+const audioTime = ref(0);
+const lyricRequest = new AbortController();
+const currentLyric = computed(() => lyricAt(lyrics.value, audioTime.value));
 const modal = ref(null);
 const particles = ref(null);
 const sparkles = [
@@ -81,6 +86,8 @@ function toggleMusic() {
   if (audio.value && !audio.value.paused) audio.value.pause();
   else playMusic();
 }
+
+function updateAudioTime() { audioTime.value = audio.value?.currentTime ?? 0; }
 
 async function requestLandscape() {
   if (!matchMedia('(pointer: coarse)').matches) return;
@@ -139,6 +146,12 @@ function onVisibility() {
 }
 
 onMounted(() => {
+  if (content.music && content.lyrics) {
+    fetch(content.lyrics, { signal: lyricRequest.signal }).then((response) => {
+      if (!response.ok) throw new Error('Lyrics unavailable');
+      return response.text();
+    }).then((text) => { lyrics.value = parseLyrics(text); }).catch(() => { /* Keep formation captions if lyrics are unavailable. */ });
+  }
   portraitQuery.addEventListener('change', onOrientation);
   reducedQuery.addEventListener('change', onMotion);
   document.addEventListener('visibilitychange', onVisibility);
@@ -149,6 +162,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  lyricRequest.abort();
   clearInterval(timer);
   clearInterval(captionTimer);
   portraitQuery.removeEventListener('change', onOrientation);
@@ -193,11 +207,15 @@ onBeforeUnmount(() => {
       <div class="waveform" :class="{ 'is-playing': playing }" aria-hidden="true">
         <i v-for="index in 11" :key="index" :style="{ '--bar': index }"></i>
       </div>
-      <p :style="{ opacity: reduced ? 1 : 1 - caption.amount }">{{ caption.from }}</p>
-      <p v-if="caption.amount > 0 && !reduced" aria-hidden="true" :style="{ opacity: caption.amount }">{{ caption.to }}</p>
+      <p v-if="currentLyric" class="song-lyrics">{{ currentLyric }}</p>
+      <template v-else>
+        <p :style="{ opacity: reduced ? 1 : 1 - caption.amount }">{{ caption.from }}</p>
+        <p v-if="caption.amount > 0 && !reduced" aria-hidden="true" :style="{ opacity: caption.amount }">{{ caption.to }}</p>
+      </template>
     </div>
 
     <audio v-if="content.music" ref="audio" :src="content.music" loop preload="none"
+      @timeupdate="updateAudioTime" @seeked="updateAudioTime"
       @playing="playing = true; audioError = ''" @pause="playing = false" @error="playing = false; audioError = '音乐暂不可用。'" />
     <div v-if="ready" class="music-controls">
       <button v-if="content.music" class="glass-button" type="button" :aria-pressed="playing" @click="toggleMusic">

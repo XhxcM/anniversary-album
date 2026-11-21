@@ -95,5 +95,5 @@ export function normalizeAlbumContent(raw) {
     ? raw.encryptedLetter : null;
   return { content: { startDate, timeZone, startInstant: validStart ? startInstant : null,
     coverSource, cover: coverSource ? './media/cover.jpg' : media('cover'),
-    music: media('music'), opening, photos, chapters, timeline, encryptedLetter }, errors };
+    music: media('music'), lyrics: media('lyrics'), opening, photos, chapters, timeline, encryptedLetter }, errors };
 }
