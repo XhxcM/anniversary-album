@@ -3,7 +3,8 @@ window.ALBUM_CONTENT = {
   startDate: '2025-12-14',
   timeZone: 'Asia/Shanghai',
   cover: './media/cover.jpg',
-  music: null,
+  music: './media/music.mp3',
+  lyrics: './media/lyrics.lrc',
   coverSource: 'important/mmexport1789025601668.jpg',
   photoSources: [{ folder: 'pictures', files: [
     "0d8f0120d1a45f75225f6ca0f63358ff", "0dfcb5bf8d21626282ab6f437949859b", "0f631b079f0717fef0ce3dd7b8203b38", "01c6941ab36de8765c0150f267b3093d",
