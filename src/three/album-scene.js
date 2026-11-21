@@ -6,7 +6,7 @@ import { FORMATIONS, OPENING_MS, loopState, photoBatch } from './loop-timeline.j
 
 const { lerp, smoothstep } = THREE.MathUtils;
 const CARD_LIMITS = { normal: 36, reduced: 12 };
-const MOBILE_CARD_LIMITS = { normal: 12, reduced: 8 };
+const MOBILE_CARD_LIMITS = { normal: 20, reduced: 8 };
 
 function createFrameMaterial(lightTime) {
   return new THREE.ShaderMaterial({
