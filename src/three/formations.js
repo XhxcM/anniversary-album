@@ -9,8 +9,9 @@ export function selectEvenly(items, limit) {
 export function createFormation(name, count, viewport = { width: 16, height: 9 }) {
   const width = Math.min(viewport.width, viewport.height * 2.55);
   const height = viewport.height;
+  const compact = viewport.compact === true;
   const cardSize = name === 'matrix' ? 3.77 : 4;
-  const scale = Math.min(0.95, Math.max(0.34, cardSize / Math.sqrt(Math.max(1, count))));
+  const scale = Math.min(compact ? 1.18 : 0.95, Math.max(0.34, (compact ? 4.8 : cardSize) / Math.sqrt(Math.max(1, count))));
   function heartPoints(size, side) {
     const curve = Array.from({ length: 513 }, (_, index) => {
       const t = index / 512 * Math.PI * 2;
@@ -34,7 +35,7 @@ export function createFormation(name, count, viewport = { width: 16, height: 9 }
     const angle = (index + 0.25) / Math.max(1, count) * Math.PI * 2;
     let x, y, z = Math.sin(index * 2.4) * 0.32, rotationY = 0;
     if (name === 'river') {
-      const columns = Math.ceil(count / Math.min(5, Math.ceil(count / 10)));
+      const columns = Math.ceil(count / (compact ? Math.min(2, count) : Math.min(5, Math.ceil(count / 10))));
       const column = columns === 1 ? 0.5 : (index % columns) / (columns - 1);
       x = (column - 0.5) * (width * 0.74 - 2 * edgeInset);
       const row = Math.floor(index / columns) - (Math.ceil(count / columns) - 1) / 2;
@@ -47,18 +48,18 @@ export function createFormation(name, count, viewport = { width: 16, height: 9 }
     } else if (name === 'doubleHeart') {
       ({ x, y } = hearts[index]);
     } else if (name === 'matrix') {
-      const columns = Math.ceil(Math.sqrt(count));
+      const columns = compact ? Math.ceil(count / Math.min(2, count)) : Math.ceil(Math.sqrt(count));
       const rows = Math.ceil(count / columns);
       const row = Math.floor(index / columns);
       const rowLength = Math.min(columns, count - row * columns);
-      x = (index % columns - (rowLength - 1) / 2) * Math.min(width * 0.78, height * 0.91) / columns;
-      y = ((rows - 1) / 2 - row) * height * 0.95 / rows;
+      x = (index % columns - (rowLength - 1) / 2) * Math.min(width * 0.78, height * (compact ? 2.15 : 0.91)) / columns;
+      y = ((rows - 1) / 2 - row) * height * (compact ? 0.68 : 0.95) / rows;
       z = 0;
     } else if (name === 'sphere') {
       const vertical = 1 - 2 * (index + 0.5) / count;
       const radius = Math.sqrt(1 - vertical ** 2);
       const longitude = index * Math.PI * (3 - Math.sqrt(5));
-      x = Math.cos(longitude) * radius * Math.min(width * 0.32, height * 0.43);
+      x = Math.cos(longitude) * radius * Math.min(width * 0.32, height * (compact ? 0.6 : 0.43));
       y = vertical * (height * 0.36 - Math.min(height * 0.1, edgeInset * 0.66));
       z = Math.sin(longitude) * radius * 2.2;
       rotationY = x / height * 1.35;
@@ -71,7 +72,7 @@ export function createFormation(name, count, viewport = { width: 16, height: 9 }
       z = Math.cos(longitude) * 2 + band * 0.22;
       rotationY = Math.sin(longitude) * 0.48;
     } else if (name === 'cylinder') {
-      const columns = Math.ceil(count / Math.min(5, Math.ceil(count / 10)));
+      const columns = Math.ceil(count / (compact ? Math.min(2, count) : Math.min(5, Math.ceil(count / 10))));
       const longitude = columns === 1 ? 0 : (index % columns / (columns - 1) - 0.5) * Math.PI * 0.87;
       x = Math.sin(longitude) * (width * 0.37 - edgeInset);
       y = (Math.floor(index / columns) - (Math.ceil(count / columns) - 1) / 2) * Math.max(height * 0.13, size * 1.17);

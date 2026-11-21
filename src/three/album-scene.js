@@ -6,6 +6,7 @@ import { FORMATIONS, OPENING_MS, loopState, photoBatch } from './loop-timeline.j
 
 const { lerp, smoothstep } = THREE.MathUtils;
 const CARD_LIMITS = { normal: 36, reduced: 12 };
+const MOBILE_CARD_LIMITS = { normal: 12, reduced: 8 };
 
 function createFrameMaterial(lightTime) {
   return new THREE.ShaderMaterial({
@@ -69,6 +70,7 @@ export class AlbumScene {
     this.textures = new Map();
     this.budget = createFrameBudget();
     this.mode = 'normal';
+    this.cardLimits = CARD_LIMITS;
     this.lightTime = { value: 0 };
     this.applyPhotoLight = (shader) => {
       shader.uniforms.uAlbumLightTime = this.lightTime;
@@ -172,12 +174,14 @@ export class AlbumScene {
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
-    this.viewport = { width: 8.5 * width / height, height: 8.5 };
+    const compact = window.matchMedia('(pointer: coarse), (max-width: 1100px) and (max-height: 600px)').matches;
+    this.cardLimits = compact ? MOBILE_CARD_LIMITS : CARD_LIMITS;
+    this.viewport = { width: 8.5 * width / height, height: 8.5, compact };
     this.updateTargets();
   }
 
   updateTargets() {
-    const { count } = photoBatch(0, this.items.length, CARD_LIMITS[this.mode]);
+    const { count } = photoBatch(0, this.items.length, this.cardLimits[this.mode]);
     this.targets = Object.fromEntries(FORMATIONS.map(({ name }) =>
       [name, createFormation(name, count, this.viewport)]));
   }
@@ -204,7 +208,7 @@ export class AlbumScene {
     }
     const { formation, nextFormation, progress } = loopState(elapsed - OPENING_MS);
     const total = this.items.length;
-    const { start, count } = photoBatch(elapsed - OPENING_MS, total, CARD_LIMITS[this.mode]);
+    const { start, count } = photoBatch(elapsed - OPENING_MS, total, this.cardLimits[this.mode]);
     const from = this.targets?.[formation];
     const to = this.targets?.[nextFormation];
     const transition = smoothstep(progress, 0, 1);
