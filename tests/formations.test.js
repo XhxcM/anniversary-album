@@ -65,14 +65,15 @@ test('36 larger portrait cards fit a complete 6 by 6 matrix with a vertical gap'
   assert.ok(createFormation('doubleHeart', 36)[0].scale > 1.16);
 });
 
-test('phone formations use larger photos and a wide two-row matrix', () => {
+test('phone formations fill the landscape canvas with at most three rows of large photos', () => {
   const viewport = { width: 34, height: 8.5, compact: true };
-  const matrix = createFormation('matrix', 20, viewport);
-  assert.equal(new Set(matrix.map(({ y }) => y)).size, 2);
-  assert.equal(new Set(matrix.map(({ x }) => x)).size, 10);
-  assert.ok(matrix[0].scale > createFormation('matrix', 36)[0].scale * 1.65);
+  const matrix = createFormation('matrix', 25, viewport);
+  assert.equal(new Set(matrix.map(({ y }) => y)).size, 3);
+  assert.equal(new Set(matrix.map(({ x }) => x)).size, 9);
+  assert.ok(matrix[0].scale > createFormation('matrix', 36)[0].scale * 2);
+  assert.ok(Math.max(...matrix.map(({ x }) => x)) - Math.min(...matrix.map(({ x }) => x)) > 25);
   for (const name of ['doubleHeart', 'matrix', 'sphere', 'river', 'ring', 'cylinder']) {
-    for (const count of [0, 1, 8, 20]) {
+    for (const count of [0, 1, 8, 25]) {
       const points = createFormation(name, count, viewport);
       assert.equal(points.length, count);
       assert.ok(points.every((point) => Object.values(point).every(Number.isFinite)));
