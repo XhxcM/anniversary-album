@@ -30,7 +30,7 @@ export async function preparePhotos({ sourceDir, outputDir, chapters, coverFile 
       if (!/\.(jpe?g|png)$/i.test(input)) throw new Error('不支持此格式，请将 HEIC 等格式先导出为 JPG');
       if (dryRun) await sharp(input).metadata();
       else {
-        for (const [name, size, format] of destinations) {
+        for (const [name, size, format, quality] of destinations) {
           const target = await physicalPath(path.join(output, name));
           if (!inside(output, target) || inside(source, target)) throw new Error('输出路径超出目录');
           await mkdir(path.dirname(target), { recursive: true });
@@ -38,7 +38,7 @@ export async function preparePhotos({ sourceDir, outputDir, chapters, coverFile 
           const dimensions = portrait && format === 'webp'
             ? { width: size * 3 / 4, height: size, fit: 'cover', position: position ?? 'centre' }
             : { width: size, height: size, fit: 'inside', withoutEnlargement: true };
-          await image.resize(dimensions).toFormat(format, { quality: format === 'webp' ? 84 : 88 }).toFile(target);
+          await image.resize(dimensions).toFormat(format, { quality }).toFile(target);
         }
       }
       processed++;
@@ -58,12 +58,12 @@ export async function preparePhotos({ sourceDir, outputDir, chapters, coverFile 
       if (supported.length > 1) { failures.push(`${chapter.folder}/${photo.file}：存在多个同名原图，请只保留一个版本`); continue; }
       const name = supported[0] ?? candidates[0] ?? `${photo.file}.jpg`;
       await convert(path.join(inputFolder, name), [
-        [`photos/${chapter.folder}/thumb/${photo.file}.webp`, 512, 'webp'],
-        [`photos/${chapter.folder}/full/${photo.file}.webp`, 1920, 'webp'],
+        [`photos/${chapter.folder}/thumb/${photo.file}.webp`, 384, 'webp', 76],
+        [`photos/${chapter.folder}/full/${photo.file}.webp`, 1920, 'webp', 84],
       ], photo.position);
     }
   }
-  if (coverFile) await convert(coverFile, [['cover.jpg', 2400, 'jpeg']]);
+  if (coverFile) await convert(coverFile, [['cover.jpg', 2400, 'jpeg', 88]]);
   return { processed, failures };
 }
 

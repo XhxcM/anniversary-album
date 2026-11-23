@@ -17,7 +17,8 @@ npm run dev -- --host 127.0.0.1
 
 - 正式照片在 `pictures/`，封面在 `important/`。`public/content.js` 中的 `photoSources` 按列出的顺序读取文件名，不含扩展名。JPG、JPEG 和 PNG 扩展名支持大小写。移除 `photoSources` 时，旧 `chapters` 的照片按章节顺序从 `originals/` 迁移读取。
 - `coverSource` 指向开场最前方的封面。`opening` 可选填最多三个 `./media/` 下的图片路径，作为封面背后的卡片。
-- 网页副本写入 `public/media/`。照片卡片自动校正方向并裁成 3:4，默认居中。单张照片可以写成 `{ file: 'DSC_8047', position: 'top' }`，支持 `top`、`bottom`、`left`、`right`。素材脚本去除 EXIF 和 XMP，保留原图。移除照片配置后，发布前检查并移走 `public/media/photos/` 中相应的旧网页副本。
+- 网页副本写入 `public/media/`。照片卡片自动校正方向并裁成 3:4，默认居中。预览图长边为 384 像素，完整照片长边为 1920 像素。单张照片可以写成 `{ file: 'DSC_8047', position: 'top' }`，支持 `top`、`bottom`、`left`、`right`。素材脚本去除 EXIF 和 XMP，保留原图。移除照片配置后，发布前检查并移走 `public/media/photos/` 中相应的旧网页副本。
+- 立体舞台优先加载当前屏照片并预加载下一批，最多同时下载 4 张。请求超过 8 秒会取消，失败自动重试，之后再次轮到该照片或网络恢复时仍可重新加载。已成功下载的照片纹理会复用。
 - 计时起点默认从 `startDate` 推导为上海当地当天零点。如需精确到其他时刻，可填写带时区的 `startInstant`，例如 `2025-12-14T00:00:00+08:00`。
 - 音乐原文件和 LRC 歌词放在 `music/`。`npm run prepare-media` 将当前《Spring Rain》的 MP3 和 LRC 复制到 `public/media/music.mp3` 和 `public/media/lyrics.lrc`，`music` 与 `lyrics` 分别引用这两个路径。点击封面后播放，歌词跟随音乐时间切换，暂停和循环时保持同步；歌词不可用时保留原相册文案。原始音乐目录与网页素材副本均不提交到源码分支。
 - 在 `timeline` 中按展示顺序填写 `{ date, title, description }`。日期可填 `YYYY.MM.DD` 或“未完待续”等展示文字。当前包含初遇、第一顿晚饭、确定关系、一百天纪念日、连云港旅行和一周年六个纪念节点，以及“未完待续”的未来寄语。

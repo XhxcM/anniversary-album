@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { createFormation } from './formations.js';
 import { createFrameBudget } from './frame-budget.js';
 import { createTransitionPlan } from './transition-plan.js';
+import { createTextureQueue } from './texture-queue.js';
 import { FORMATIONS, OPENING_MS, loopState, photoBatch } from './loop-timeline.js';
 
 const { lerp, smoothstep } = THREE.MathUtils;
@@ -97,6 +98,27 @@ export class AlbumScene {
     this.geometry = new THREE.PlaneGeometry(1, 1);
     this.frameMaterial = createFrameMaterial(this.lightTime);
     this.loader = new THREE.TextureLoader();
+    this.photoQueue = createTextureQueue(async (url, signal, attempt) => {
+      const response = await fetch(url, { signal, cache: attempt > 1 ? 'reload' : 'default' });
+      if (!response.ok) throw new Error('Photo request failed');
+      const objectUrl = URL.createObjectURL(await response.blob());
+      try {
+        const texture = await this.loader.loadAsync(objectUrl);
+        if (signal.aborted) { texture.dispose(); throw new Error('Photo request timed out'); }
+        return texture;
+      } finally { URL.revokeObjectURL(objectUrl); }
+    }, (url, texture) => {
+      const entry = this.textures.get(url);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      entry.texture = texture;
+      for (const material of entry.materials) {
+        material.map = texture;
+        material.needsUpdate = true;
+      }
+      entry.materials.length = 0;
+    });
+    this.onOnline = () => { this.batchKey = null; this.loadBatch(); };
+    window.addEventListener('online', this.onOnline);
     const placeholder = document.createElement('canvas');
     placeholder.width = 192;
     placeholder.height = 256;
@@ -142,23 +164,21 @@ export class AlbumScene {
     if (!entry) {
       entry = { materials: [], texture: null };
       this.textures.set(photo.thumb, entry);
-      this.loader.load(photo.thumb, (texture) => {
-        if (this.disposed) {
-          texture.dispose();
-          return;
-        }
-        texture.colorSpace = THREE.SRGBColorSpace;
-        entry.texture = texture;
-        for (const material of entry.materials) {
-          material.map = texture;
-          material.needsUpdate = true;
-        }
-        entry.materials.length = 0;
-      }, undefined, () => { entry.materials.length = 0; });
     }
     if (entry.texture) picture.material.map = entry.texture;
     else entry.materials.push(picture.material);
+    group.userData.photoUrl = photo.thumb;
     return group;
+  }
+
+  loadBatch() {
+    if (this.disposed || !this.items.length) return;
+    const { start, count } = photoBatch(this.elapsed(performance.now()) - OPENING_MS, this.items.length, this.cardLimits[this.mode]);
+    const key = `${start}/${count}`;
+    if (this.batchKey === key) return;
+    this.batchKey = key;
+    this.photoQueue.request(Array.from({ length: Math.min(this.items.length, count * 2) }, (_, index) =>
+      this.items[(start + index) % this.items.length].userData.photoUrl));
   }
 
   setPaused(paused) {
@@ -184,6 +204,7 @@ export class AlbumScene {
     const { count } = photoBatch(0, this.items.length, this.cardLimits[this.mode]);
     this.targets = Object.fromEntries(FORMATIONS.map(({ name }) =>
       [name, createFormation(name, count, this.viewport)]));
+    this.loadBatch();
   }
 
   tick(now) {
@@ -209,6 +230,7 @@ export class AlbumScene {
     const { formation, nextFormation, progress } = loopState(elapsed - OPENING_MS);
     const total = this.items.length;
     const { start, count } = photoBatch(elapsed - OPENING_MS, total, this.cardLimits[this.mode]);
+    this.loadBatch();
     const from = this.targets?.[formation];
     const to = this.targets?.[nextFormation];
     const transition = smoothstep(progress, 0, 1);
@@ -259,6 +281,8 @@ export class AlbumScene {
     if (this.disposed) return;
     this.disposed = true;
     cancelAnimationFrame(this.raf);
+    this.photoQueue.dispose();
+    window.removeEventListener('online', this.onOnline);
     this.canvas.removeEventListener('webglcontextlost', this.contextLost);
     for (const group of this.items) {
       for (const mesh of group.children) {
