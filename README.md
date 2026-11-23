@@ -20,7 +20,7 @@ npm run dev -- --host 127.0.0.1
 - 网页副本写入 `public/media/`。照片卡片自动校正方向并裁成 3:4，默认居中。单张照片可以写成 `{ file: 'DSC_8047', position: 'top' }`，支持 `top`、`bottom`、`left`、`right`。素材脚本去除 EXIF 和 XMP，保留原图。移除照片配置后，发布前检查并移走 `public/media/photos/` 中相应的旧网页副本。
 - 计时起点默认从 `startDate` 推导为上海当地当天零点。如需精确到其他时刻，可填写带时区的 `startInstant`，例如 `2025-12-14T00:00:00+08:00`。
 - 音乐原文件和 LRC 歌词放在 `music/`。`npm run prepare-media` 将当前《Spring Rain》的 MP3 和 LRC 复制到 `public/media/music.mp3` 和 `public/media/lyrics.lrc`，`music` 与 `lyrics` 分别引用这两个路径。点击封面后播放，歌词跟随音乐时间切换，暂停和循环时保持同步；歌词不可用时保留原相册文案。原始音乐目录与网页素材副本均不提交到源码分支。
-- 在 `timeline` 中按展示顺序填写 `{ date, title, description }`。日期可填 `YYYY.MM.DD` 或“未完待续”等展示文字。当前包含初遇、第一顿晚饭、确定关系、一百天纪念日、连云港旅行和一周年六个节点。
+- 在 `timeline` 中按展示顺序填写 `{ date, title, description }`。日期可填 `YYYY.MM.DD` 或“未完待续”等展示文字。当前包含初遇、第一顿晚饭、确定关系、一百天纪念日、连云港旅行和一周年六个纪念节点，以及“未完待续”的未来寄语。
 
 ## 加密信件
 
