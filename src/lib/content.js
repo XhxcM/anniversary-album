@@ -13,7 +13,7 @@ const localMedia = (value) => typeof value === 'string' && /^\.\/media\/[\p{L}\p
 export function photoMediaPaths(chapterFolder, file) {
   if (!safeSegment(chapterFolder) || !safePhotoName(file)) throw new Error('照片目录或文件名无效');
   const base = `./media/photos/${chapterFolder}`;
-  return { thumb: `${base}/thumb/${file}.webp?v=2`, full: `${base}/full/${file}.webp` };
+  return { thumb: `${base}/thumb/${file}.webp`, full: `${base}/full/${file}.webp` };
 }
 
 export function normalizeAlbumContent(raw) {

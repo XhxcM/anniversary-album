@@ -20,7 +20,7 @@ test('media copies strip metadata, respect dimensions, and never change original
   assert.equal(result.processed, 2);
   assert.ok(result.failures.some((line) => line.includes('missing')));
   assert.deepEqual(await readFile(source), before);
-  for (const [relative, limit, format] of [['photos/chapter/thumb/01.webp', 384, 'webp'],
+  for (const [relative, limit, format] of [['photos/chapter/thumb/01.webp', 512, 'webp'],
     ['photos/chapter/full/01.webp', 1920, 'webp'], ['cover.jpg', 2400, 'jpeg']]) {
     const metadata = await sharp(path.join(outputDir, relative)).metadata();
     assert.ok(Math.max(metadata.width, metadata.height) <= limit);

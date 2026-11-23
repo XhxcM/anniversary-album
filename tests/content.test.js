@@ -39,7 +39,7 @@ test('music and lyrics use validated local media paths', () => {
 });
 test('media paths derive thumb/full from folder and basename', () => {
   assert.deepEqual(photoMediaPaths('01-故事开始', '01'), {
-    thumb: './media/photos/01-故事开始/thumb/01.webp?v=2', full: './media/photos/01-故事开始/full/01.webp',
+    thumb: './media/photos/01-故事开始/thumb/01.webp', full: './media/photos/01-故事开始/full/01.webp',
   });
 });
 test('replacement chapter ids remain unique when supplied ids match fallback ids', () => {
